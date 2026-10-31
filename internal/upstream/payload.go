@@ -66,6 +66,8 @@ func PrepareBodyOptWithEffortsAndDefault(src []byte, sanitize bool, efforts map[
 		msgs, _ = mergeAdjacentToolCalls(msgs)
 		msgs, _ = repackToolResultBlocks(msgs)
 		msgs, _ = cleanupOrphanToolCalls(msgs)
+		// 空 content 归一化（见 empty_content.go）：上游对 null/空串会挂起或 503。
+		normalizeEmptyContent(msgs)
 		// 无改动时两步都返回原 slice，这里回写等于零操作；任一步重排/删除
 		// （哪怕后续步骤零改动）也必须落到 obj——不能只在「最后一步改动」时回写，
 		// 否则 repack 单独生效的结果会被原 slice 覆盖丢失。
