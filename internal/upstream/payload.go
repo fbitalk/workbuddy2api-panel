@@ -68,6 +68,20 @@ func PrepareBodyOptWithEffortsAndDefault(src []byte, sanitize bool, efforts map[
 		msgs, _ = cleanupOrphanToolCalls(msgs)
 		// 空 content 归一化（见 empty_content.go）：上游对 null/空串会挂起或 503。
 		normalizeEmptyContent(msgs)
+		ensureVisibleContent(msgs)
+		stripDataURLImages(obj)
+		// 排障：归一化后仍存在空 content 的消息打点（配合上游 11151 排查）
+		if dbg, ok2 := obj["messages"].([]any); ok2 {
+			for di, dm := range dbg {
+				dm2, ok3 := dm.(map[string]any)
+				if !ok3 { continue }
+				dc, has := dm2["content"]
+				empty := !has || dc == nil
+				if !empty { if ds, ok4 := dc.(string); ok4 && strings.TrimSpace(ds) == "" { empty = true } }
+				if !empty { if da, ok5 := dc.([]any); ok5 && len(da) == 0 { empty = true } }
+				if empty { log.Printf("[payload][debug] 空 content 消息 idx=%d role=%v keys=%v", di, dm2["role"], dm2["content"], dm2["tool_calls"] != nil) }
+			}
+		}
 		// 无改动时两步都返回原 slice，这里回写等于零操作；任一步重排/删除
 		// （哪怕后续步骤零改动）也必须落到 obj——不能只在「最后一步改动」时回写，
 		// 否则 repack 单独生效的结果会被原 slice 覆盖丢失。
